@@ -109,14 +109,14 @@ export default class SystemMonitorExtension {
         const temp  = this._getCpuTemp();
         const watts = this._getCpuWatts();
         this._cpuTemp.set_text(temp !== null ? `${temp.toFixed(0)}°C` : '0°C');
-        this._cpuWatts.set_text(watts !== null ? fmtW(watts) : '--W');
+        this._cpuWatts.set_text(watts !== null ? fmtW(watts) : '');
         const nv = this._nvidiaSmi ? this._getNvidiaStat() : null;
         const gpuPct   = nv ? nv.usage : this._getGpuStat('busy');
         const gpuTemp  = nv ? nv.temp  : this._getGpuStat('temp');
         const gpuWatts = nv ? nv.watts : this._getGpuStat('power');
         this._gpu.label.set_text(gpuPct !== null ? `${gpuPct.toFixed(0)}%` : '0%');
         this._gpuTemp.set_text(gpuTemp  !== null ? `${gpuTemp.toFixed(0)}°C` : '0°C');
-        this._gpuWatts.set_text(gpuWatts !== null ? fmtW(gpuWatts) : '--W');
+        this._gpuWatts.set_text(gpuWatts !== null ? fmtW(gpuWatts) : '');
         this._mem.label.set_text(`${mem.toFixed(0)}%`);
         this._dl.label.set_text(net.down !== null ? `${net.down.toFixed(1)}` : '0.0');
         this._ul.label.set_text(net.up !== null ? `${net.up.toFixed(1)}` : '0.0');

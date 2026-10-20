@@ -18,7 +18,40 @@ pacman -Q gnome-shell >/dev/null 2>&1 || fail "GNOME is not installed"
 
 # Ask everything up front, so the rest runs unattended
 sudo -v
-read -rp $'\e[1;34m::\e[0;1m Install Chrome and VSCode? [Y/n] \e[0m' REPLY
+# Inline checklist, all checked by default: arrows move, enter or space toggles, enter on <DONE> confirms
+OPTIONAL=(google-chrome:"Google Chrome" visual-studio-code-bin:"Visual Studio Code" discord:"Discord")
+CHECKED=()
+for i in "${!OPTIONAL[@]}"; do CHECKED[i]=x; done
+DONE=${#OPTIONAL[@]} # index of the <DONE> row
+CUR=$DONE # start on [CONTINUE], so enter accepts the defaults
+printf '\e[1;34m::\e[0;1m Install packages (↑↓ move, enter toggles):\e[0m\n'
+while true; do
+    for ((i = 0; i <= DONE; i++)); do
+        if [ "$i" = "$CUR" ]; then printf ' \e[1;34m>\e[0m'; else printf '  '; fi
+        if [ "$i" = "$DONE" ]; then printf ' [CONTINUE] '; else printf ' [%s] %s\n' "${CHECKED[i]:- }" "${OPTIONAL[i]#*:}"; fi
+    done
+    IFS= read -rsn1 KEY
+    case $KEY in
+        '' | ' ')
+            [ "$CUR" = "$DONE" ] && break
+            if [ -n "${CHECKED[CUR]}" ]; then CHECKED[CUR]=; else CHECKED[CUR]=x; fi ;;
+        $'\e') read -rsn2 KEY
+            case $KEY in
+                '[A') CUR=$(( (CUR + DONE) % (DONE + 1) )) ;;
+                '[B') CUR=$(( (CUR + 1) % (DONE + 1) )) ;;
+            esac ;;
+    esac
+    # No newline after [DONE] keeps the cursor on that line; go back to the first row to redraw in place
+    printf '\r\e[%dA' "$DONE"
+done
+echo
+PACKAGES=
+for i in "${!OPTIONAL[@]}"; do
+    [ -n "${CHECKED[i]}" ] && PACKAGES+=" ${OPTIONAL[i]%%:*}"
+done
+if [ -f /etc/default/grub ]; then
+    read -rp $'\e[1;34m::\e[0;1m Skip GRUB timeout? [Y/n] \e[0m' SKIP_GRUB_TIMEOUT
+fi
 
 # Only step messages reach the terminal (fd 3); command output goes to a log that is printed if a step fails
 LOG=$(mktemp)
@@ -37,13 +70,36 @@ step "Configuring mkinitcpio and GRUB"
 # Without this, mkinitcpio fails once plymouth is gone
 sudo sed -i -E '/^HOOKS=/ s/ plymouth\b//' /etc/mkinitcpio.conf
 
+sudo tee /etc/initcpio/install/hide-initrd-status >/dev/null <<'EOF'
+#!/bin/bash
+build() {
+    printf '[Manager]\nShowStatus=auto\n' | add_file - /etc/systemd/system.conf.d/hide-status.conf 644
+}
+EOF
+sudo sed -i -E '/^HOOKS=/ { /\bhide-initrd-status\b/! s/\)/ hide-initrd-status)/ }' /etc/mkinitcpio.conf
+
 if [ -f /etc/default/grub ]; then
     sudo sed -i -E 's/^GRUB_THEME=/#GRUB_THEME=/; /^GRUB_CMDLINE_LINUX_DEFAULT=/ s/ ?\bsplash\b//' /etc/default/grub
-    # Hides the UEFI firmware boot entries CachyOS's 31_efi_bootnext adds to the menu
     if ! grep -q '^GRUB_DISABLE_BOOTNEXT=' /etc/default/grub; then
         echo 'GRUB_DISABLE_BOOTNEXT=true' | sudo tee -a /etc/default/grub >/dev/null
     fi
+    grub_set() {
+        if grep -qE "^#?$1=" /etc/default/grub; then
+            sudo sed -i -E "s/^#?$1=.*/$1=$2/" /etc/default/grub
+        else
+            echo "$1=$2" | sudo tee -a /etc/default/grub >/dev/null
+        fi
+    }
+    grub_set GRUB_DISTRIBUTOR "'Linux'"
+    grub_set GRUB_GFXMODE 1920x1080
+    if [[ ! "$SKIP_GRUB_TIMEOUT" =~ ^[Nn] ]]; then
+        grub_set GRUB_TIMEOUT 0
+        grub_set GRUB_TIMEOUT_STYLE hidden
+    fi
 fi
+
+step "Removing CachyOS branding"
+sudo sed -i -E 's/^(NAME|PRETTY_NAME)=.*/\1="Linux"/; /^(LOGO|ANSI_COLOR)=/d' /etc/os-release
 
 step "Hiding v4l-utils launchers"
 # v4l-utils is needed by ffmpeg and gstreamer, so only hide its Qt launchers (NoExtract keeps them gone after updates)
@@ -66,9 +122,9 @@ step "Installing yay"
 # yay is in the CachyOS repo, so no AUR build is needed
 sudo pacman -S --needed --noconfirm yay
 
-if [[ ! "$REPLY" =~ ^[Nn] ]]; then
-    step "Installing Chrome and VSCode"
-    yay -S --needed --noconfirm google-chrome visual-studio-code-bin
+if [ -n "$PACKAGES" ]; then
+    step "Installing selected packages"
+    yay -S --needed --noconfirm $PACKAGES
 fi
 
 step "Setting wallpaper and login screen"
