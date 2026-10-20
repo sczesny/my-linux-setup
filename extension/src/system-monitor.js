@@ -9,7 +9,7 @@ import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 const INTERVAL_S = 2;
 
 function fmtW(w) {
-    return (w < 10 ? w.toFixed(2) : w < 100 ? w.toFixed(1) : w.toFixed(0)) + 'W';
+    return (w < 10 ? w.toFixed(1) : w.toFixed(0)) + 'W';
 }
 
 function makeLabel() {
