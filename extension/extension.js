@@ -14,10 +14,15 @@ export default class HelloExtension extends Extension {
 
         this._modules = [];
         for (const name of files) {
-            const {default: Impl} = await import(`${this.dir.get_uri()}/src/${name}?v=${Date.now()}`);
-            const impl = new Impl();
-            impl.enable();
-            this._modules.push(impl);
+            // One broken module is logged and skipped instead of stopping the rest
+            try {
+                const {default: Impl} = await import(`${this.dir.get_uri()}/src/${name}?v=${Date.now()}`);
+                const impl = new Impl();
+                impl.enable();
+                this._modules.push(impl);
+            } catch (e) {
+                console.error(`custom: ${name} failed to load`, e);
+            }
         }
     }
 

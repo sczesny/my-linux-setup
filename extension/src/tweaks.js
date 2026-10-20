@@ -1,3 +1,4 @@
+import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
@@ -123,12 +124,20 @@ function searchAtBottom() {
         searchController.translation_y = bin.y - searchController.y;
     }, owner);
     // Expanding spacer before the providers pushes the results down against the entry
+    const content = searchController._searchResults._content;
     const spacer = new St.Widget({y_expand: true});
-    searchController._searchResults._content.insert_child_at_index(spacer, 0);
+    content.insert_child_at_index(spacer, 0);
+    // Providers in reverse, so apps (registered first) sit right above the entry; later ones go on top too
+    const reverse = () => content.get_children().filter(child => child !== spacer)
+        .forEach(child => content.set_child_at_index(child, 1));
+    reverse();
+    content.add_child = child => content.insert_child_at_index(child, 1);
     return () => {
         searchController.disconnectObject(owner);
         searchController.translation_y = 0;
         bin.translation_y = 0;
+        delete content.add_child;
+        reverse();
         spacer.destroy();
     };
 }
@@ -206,6 +215,26 @@ function hidePowerIconWithoutBattery() {
     };
 }
 
+// Notification banners in the bottom left, sliding up from the bottom edge. The tray slides the banner from
+// y = -height to y = 0 at the top; mirror that position vertically, so the animation flips with it.
+function notificationsAtBottomLeft() {
+    const tray = Main.messageTray;
+    const bin = tray._bannerBin;
+    const owner = {};
+    const mirror = () => {
+        bin.translation_y = tray.height - bin.height - 2 * bin.y;
+    };
+    bin.connectObject('notify::y', mirror, 'notify::height', mirror, owner);
+    tray.connectObject('notify::height', mirror, owner);
+    tray.bannerAlignment = Clutter.ActorAlign.START;
+    return () => {
+        bin.disconnectObject(owner);
+        tray.disconnectObject(owner);
+        bin.translation_y = 0;
+        tray.bannerAlignment = Clutter.ActorAlign.CENTER;
+    };
+}
+
 export default class Tweaks {
     enable() {
         this._undo = [
@@ -219,6 +248,7 @@ export default class Tweaks {
             flushPanelMenus(),
             rearrangePanel(),
             hidePowerIconWithoutBattery(),
+            notificationsAtBottomLeft(),
         ];
     }
 
