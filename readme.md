@@ -1,7 +1,7 @@
 
 # My Linux setup
 
-This is my personal Linux setup, using CachyOS + GNOME
+This is my personal Linux setup for CachyOS with GNOME
 
 ## Installation
 
