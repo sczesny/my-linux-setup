@@ -10,5 +10,5 @@ This is my personal Linux setup for CachyOS with GNOME
 3. `cd my-linux-setup`
 4. `./install.sh`
 
-**Warning**: This this project is mostly AI generated and may contain errors.
+**Disclaimer**: This this project is mostly AI generated and may contain errors.
 Use it at your own risk. I am not responsible for any damage caused by this setup.
