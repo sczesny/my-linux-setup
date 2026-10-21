@@ -142,6 +142,10 @@ if [ -n "$INSTALLED" ]; then
     sudo pacman -Rns --noconfirm $INSTALLED
 fi
 
+step "Disabling unneeded services"
+# wait-online only delays boot; avahi is unused without CUPS and without mdns in nsswitch.conf
+sudo systemctl disable --now NetworkManager-wait-online.service avahi-daemon.service avahi-daemon.socket
+
 step "Updating system"
 sudo pacman -Syu --noconfirm
 
