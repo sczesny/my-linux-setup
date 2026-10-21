@@ -19,10 +19,10 @@ pacman -Q gnome-shell >/dev/null 2>&1 || fail "GNOME is not installed"
 # Ask everything up front, so the rest runs unattended
 sudo -v
 # Inline checklist, checked by default except UNCHECKED: arrows move, enter or space toggles, enter on <DONE> confirms
-OPTIONAL=(google-chrome:"Google Chrome" brave-bin:"Brave" visual-studio-code-bin:"Visual Studio Code" discord:"Discord" steam:"Steam" photocraft:"PhotoCraft" vectorcraft:"VectorCraft" wordcraft:"WordCraft")
-UNCHECKED=(brave-bin steam photocraft vectorcraft wordcraft)
+OPTIONAL=(google-chrome:"Google Chrome" brave-bin:"Brave" visual-studio-code-bin:"Visual Studio Code" npm:"Node.js + Npm" discord:"Discord" steam:"Steam" photocraft:"PhotoCraft" vectorcraft:"VectorCraft" wordcraft:"WordCraft" deckcraft:"DeckCraft" gridcraft:"GridCraft")
+UNCHECKED=(brave-bin steam photocraft vectorcraft wordcraft deckcraft gridcraft)
 # Flatpaks from github.com/storytold releases, installed by files/storytold.sh instead of yay
-STORYTOLD=(photocraft vectorcraft wordcraft)
+STORYTOLD=(photocraft vectorcraft wordcraft deckcraft gridcraft)
 CHECKED=()
 for i in "${!OPTIONAL[@]}"; do [[ " ${UNCHECKED[*]} " == *" ${OPTIONAL[i]%%:*} "* ]] || CHECKED[i]=x; done
 DONE=${#OPTIONAL[@]} # index of the <DONE> row
@@ -226,6 +226,7 @@ gsettings set "$KB_SCHEMA" command 'ptyxis --new-window'
 gsettings set "$KB_SCHEMA" binding '<Super>t'
 
 gsettings set org.gnome.settings-daemon.plugins.media-keys home "['<Super>e']"
+gsettings set org.gnome.settings-daemon.plugins.media-keys www "['<Super>b']"
 
 # Rename apps and replace their icons with files/<icon>.svg: btop looks like GNOME Resources, Ptyxis like GNOME Terminal
 # A launcher in ~/.local/share/applications overrides the system one

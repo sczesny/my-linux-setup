@@ -1,5 +1,5 @@
 #!/bin/bash
-# Usage: storytold.sh <app>, e.g. photocraft, vectorcraft, wordcraft
+# Usage: storytold.sh <app>, e.g. photocraft, vectorcraft, wordcraft, deckcraft, gridcraft
 # Installs or updates the app from its latest GitHub release (flatpak, matching this CPU)
 set -e
 
