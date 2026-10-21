@@ -55,6 +55,15 @@ done
 if [ -f /etc/default/grub ]; then
     read -rp $'\e[1;34m::\e[0;1m Skip GRUB timeout? [Y/n] \e[0m' SKIP_GRUB_TIMEOUT
 fi
+read -rp $'\e[1;34m::\e[0;1m Install my fonts? (requires password) [y/N] \e[0m' INSTALL_FONTS
+if [[ "$INSTALL_FONTS" =~ ^[Yy] ]]; then
+    # Checked here, so a typo doesn't fail the unattended part later
+    while :; do
+        read -rsp $'\e[1;34m::\e[0;1m Type password: \e[0m' FONTS_PASSWORD; echo
+        unzip -tqq -P "$FONTS_PASSWORD" "$(dirname "$0")/files/my-fonts.zip" >/dev/null 2>&1 && break
+        printf '\e[1;31merror:\e[0m wrong password\n'
+    done
+fi
 
 # Only step messages reach the terminal (fd 3); command output goes to a log that is printed if a step fails
 LOG=$(mktemp)
@@ -150,6 +159,14 @@ for ITEM in "${SELECTED[@]}"; do
     fi
 done
 
+if [[ "$INSTALL_FONTS" =~ ^[Yy] ]]; then
+    step "Installing my fonts"
+    # The fonts are packed into one tar inside the zip, so listing the zip doesn't show their names
+    mkdir -p ~/.local/share/fonts/my-fonts
+    unzip -p -P "$FONTS_PASSWORD" "$(dirname "$0")/files/my-fonts.zip" fonts.tar | tar -x -C ~/.local/share/fonts/my-fonts
+    fc-cache -f
+fi
+
 step "Setting wallpaper and login screen"
 # The default wallpapers are gone, so make plain black the system default instead of GNOME's blue fallback
 # The login-screen logo beats CachyOS's override (loaded later by name) and, unlike editing that file, survives cachyos-settings updates
@@ -239,7 +256,7 @@ export PROMPT_DIRTRIM=2 PS1='\[\033[1;34m\]${PROMPT_PREFIX@P}$(d="\w"; d="${d@P}
 _tilde_prep_once() { :; }
 
 alias ll="ls -alh"
-alias sl="du -sh .[!.]* * 2>/dev/null | sort -hr"
+sl() { if [ $# -le 1 ] && [ -d "${1:-.}" ]; then (cd "${1:-.}" && du -sh .[!.]* * 2>/dev/null | sort -hr); else du -sh "$@" | sort -hr; fi; }
 EOF
 fi
 
