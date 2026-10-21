@@ -194,6 +194,7 @@ gsettings set org.gnome.desktop.sound event-sounds false
 gsettings set org.gnome.shell.app-switcher current-workspace-only true
 gsettings set org.gnome.desktop.interface enable-hot-corners false
 gsettings set org.gnome.desktop.app-folders folder-children "[]"
+gsettings reset org.gnome.shell app-picker-layout
 
 # Appended to the list so other custom shortcuts are kept
 KB=/org/gnome/settings-daemon/plugins/media-keys/custom-keybindings/terminal/
