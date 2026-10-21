@@ -21,7 +21,7 @@ sudo -v
 # Inline checklist, checked by default except UNCHECKED: arrows move, enter or space toggles, enter on <DONE> confirms
 OPTIONAL=(google-chrome:"Google Chrome" brave-bin:"Brave" visual-studio-code-bin:"Visual Studio Code" discord:"Discord" steam:"Steam" photocraft:"PhotoCraft" vectorcraft:"VectorCraft" wordcraft:"WordCraft")
 UNCHECKED=(brave-bin steam photocraft vectorcraft wordcraft)
-# Flatpaks from github.com/storytold releases, installed by storytold.sh instead of yay
+# Flatpaks from github.com/storytold releases, installed by files/storytold.sh instead of yay
 STORYTOLD=(photocraft vectorcraft wordcraft)
 CHECKED=()
 for i in "${!OPTIONAL[@]}"; do [[ " ${UNCHECKED[*]} " == *" ${OPTIONAL[i]%%:*} "* ]] || CHECKED[i]=x; done
@@ -144,7 +144,7 @@ sudo pacman -S --needed --noconfirm yay flatpak
 for ITEM in "${SELECTED[@]}"; do
     step "Installing ${ITEM#*:}"
     if [[ " ${STORYTOLD[*]} " == *" ${ITEM%%:*} "* ]]; then
-        "$(dirname "$0")/storytold.sh" "${ITEM%%:*}"
+        "$(dirname "$0")/files/storytold.sh" "${ITEM%%:*}"
     else
         yay -S --needed --noconfirm "${ITEM%%:*}"
     fi
