@@ -210,7 +210,10 @@ gsettings set org.gnome.desktop.sound allow-volume-above-100-percent true
 gsettings set org.gnome.desktop.sound event-sounds false
 gsettings set org.gnome.shell.app-switcher current-workspace-only true
 gsettings set org.gnome.desktop.interface enable-hot-corners false
-gsettings set org.gnome.desktop.app-folders folder-children "[]"
+gsettings set org.gnome.desktop.app-folders folder-children "['System']"
+FOLDER_SCHEMA=org.gnome.desktop.app-folders.folder:/org/gnome/desktop/app-folders/folders/System/
+gsettings set "$FOLDER_SCHEMA" name 'System'
+gsettings set "$FOLDER_SCHEMA" apps "['org.gnome.Calculator.desktop', 'org.gnome.DiskUtility.desktop', 'btop.desktop', 'org.pulseaudio.pavucontrol.desktop', 'org.gnome.Snapshot.desktop', 'org.gnome.Decibels.desktop', 'org.gnome.Software.desktop', 'org.gnome.SimpleScan.desktop', 'org.gnome.Papers.desktop', 'org.gnome.Loupe.desktop', 'org.gnome.Showtime.desktop']"
 gsettings reset org.gnome.shell app-picker-layout
 
 # Appended to the list so other custom shortcuts are kept
