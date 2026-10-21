@@ -18,17 +18,20 @@ pacman -Q gnome-shell >/dev/null 2>&1 || fail "GNOME is not installed"
 
 # Ask everything up front, so the rest runs unattended
 sudo -v
-# Inline checklist, all checked by default: arrows move, enter or space toggles, enter on <DONE> confirms
-OPTIONAL=(google-chrome:"Google Chrome" visual-studio-code-bin:"Visual Studio Code" discord:"Discord")
+# Inline checklist, checked by default except UNCHECKED: arrows move, enter or space toggles, enter on <DONE> confirms
+OPTIONAL=(google-chrome:"Google Chrome" brave-bin:"Brave" visual-studio-code-bin:"Visual Studio Code" discord:"Discord" steam:"Steam" photocraft:"PhotoCraft" vectorcraft:"VectorCraft" wordcraft:"WordCraft")
+UNCHECKED=(brave-bin steam photocraft vectorcraft wordcraft)
+# Flatpaks from github.com/storytold releases, installed by storytold.sh instead of yay
+STORYTOLD=(photocraft vectorcraft wordcraft)
 CHECKED=()
-for i in "${!OPTIONAL[@]}"; do CHECKED[i]=x; done
+for i in "${!OPTIONAL[@]}"; do [[ " ${UNCHECKED[*]} " == *" ${OPTIONAL[i]%%:*} "* ]] || CHECKED[i]=x; done
 DONE=${#OPTIONAL[@]} # index of the <DONE> row
 CUR=$DONE # start on [CONTINUE], so enter accepts the defaults
-printf '\e[1;34m::\e[0;1m Install packages (↑↓ move, enter toggles):\e[0m\n'
+printf '\e[1;34m::\e[0;1m Install packages:\e[0m\n'
 while true; do
     for ((i = 0; i <= DONE; i++)); do
         if [ "$i" = "$CUR" ]; then printf ' \e[1;34m>\e[0m'; else printf '  '; fi
-        if [ "$i" = "$DONE" ]; then printf ' [CONTINUE] '; else printf ' [%s] %s\n' "${CHECKED[i]:- }" "${OPTIONAL[i]#*:}"; fi
+        if [ "$i" = "$DONE" ]; then printf ' (CONTINUE) '; else printf ' [%s] %s\n' "${CHECKED[i]:- }" "${OPTIONAL[i]#*:}"; fi
     done
     IFS= read -rsn1 KEY
     case $KEY in
@@ -45,9 +48,9 @@ while true; do
     printf '\r\e[%dA' "$DONE"
 done
 echo
-PACKAGES=
+SELECTED=()
 for i in "${!OPTIONAL[@]}"; do
-    [ -n "${CHECKED[i]}" ] && PACKAGES+=" ${OPTIONAL[i]%%:*}"
+    [ -n "${CHECKED[i]}" ] && SELECTED+=("${OPTIONAL[i]}")
 done
 if [ -f /etc/default/grub ]; then
     read -rp $'\e[1;34m::\e[0;1m Skip GRUB timeout? [Y/n] \e[0m' SKIP_GRUB_TIMEOUT
@@ -56,9 +59,24 @@ fi
 # Only step messages reach the terminal (fd 3); command output goes to a log that is printed if a step fails
 LOG=$(mktemp)
 exec 3>&1 >>"$LOG" 2>&1
-trap 'if [ $? -ne 0 ]; then printf "\e[1;31merror:\e[0m step failed, output:\n" >&3; cat "$LOG" >&3; fi; rm -f "$LOG"' EXIT
+trap 'STATUS=$?; spin_stop; if [ $STATUS -ne 0 ]; then printf "\e[1;31merror:\e[0m step failed, output:\n" >&3; cat "$LOG" >&3; fi; rm -f "$LOG"' EXIT
 # Clearing the log at each step keeps a failure's output to that step
-step() { : >"$LOG"; printf '\e[1;34m::\e[0;1m %s\e[0m\n' "$*" >&3; }
+# A spinner (plus a space, so the cursor does not cover it) after the step message shows the step is still running; the next step or exit stops it
+SPIN=
+spin_stop() {
+    [ -z "$SPIN" ] && return
+    kill "$SPIN"
+    wait "$SPIN" 2>/dev/null || true
+    SPIN=
+    printf '\b\b  \n' >&3
+}
+step() {
+    spin_stop
+    : >"$LOG"
+    printf '\e[1;34m::\e[0;1m %s\e[0m   ' "$*" >&3
+    while :; do for C in ⠖ ⠲ ⢲ ⢰ ⣰ ⣠ ⣄ ⣆ ⡆ ⡖; do printf '\b\b%s ' "$C" >&3; sleep 0.1; done; done &
+    SPIN=$!
+}
 
 # Fish gets removed with cachyos-fish-config, so switch to bash
 if [ "$(getent passwd "$USER" | cut -d: -f7)" != "/bin/bash" ]; then
@@ -101,12 +119,12 @@ fi
 step "Removing CachyOS branding"
 sudo sed -i -E 's/^(NAME|PRETTY_NAME)=.*/\1="Linux"/; /^(LOGO|ANSI_COLOR)=/d' /etc/os-release
 
-step "Hiding v4l-utils launchers"
-# v4l-utils is needed by ffmpeg and gstreamer, so only hide its Qt launchers (NoExtract keeps them gone after updates)
-if ! grep -q 'qv4l2\.desktop' /etc/pacman.conf; then
-    sudo sed -i '/^\[options\]/a NoExtract = usr/share/applications/qv4l2.desktop usr/share/applications/qvidcap.desktop' /etc/pacman.conf
+step "Hiding v4l-utils and hwloc launchers"
+# v4l-utils is needed by ffmpeg and gstreamer, hwloc by flatpak, so only hide their launchers (NoExtract keeps them gone after updates)
+if ! grep -q 'lstopo\.desktop' /etc/pacman.conf; then
+    sudo sed -i '/^\[options\]/a NoExtract = usr/share/applications/qv4l2.desktop usr/share/applications/qvidcap.desktop usr/share/applications/lstopo.desktop' /etc/pacman.conf
 fi
-sudo rm -f /usr/share/applications/{qv4l2,qvidcap}.desktop
+sudo rm -f /usr/share/applications/{qv4l2,qvidcap,lstopo}.desktop
 
 # Only remove what is actually installed (package sets differ between devices)
 INSTALLED=$(pacman -Qq "${REMOVE[@]}" 2>/dev/null || true)
@@ -118,14 +136,19 @@ fi
 step "Updating system"
 sudo pacman -Syu --noconfirm
 
-step "Installing yay"
-# yay is in the CachyOS repo, so no AUR build is needed
-sudo pacman -S --needed --noconfirm yay
+step "Installing yay and flatpak"
+# Both are in the repos, so no AUR build is needed (flatpak ships with the Flathub remote)
+sudo pacman -S --needed --noconfirm yay flatpak
 
-if [ -n "$PACKAGES" ]; then
-    step "Installing selected packages"
-    yay -S --needed --noconfirm $PACKAGES
-fi
+# One step per package, so the terminal shows which one is installing
+for ITEM in "${SELECTED[@]}"; do
+    step "Installing ${ITEM#*:}"
+    if [[ " ${STORYTOLD[*]} " == *" ${ITEM%%:*} "* ]]; then
+        "$(dirname "$0")/storytold.sh" "${ITEM%%:*}"
+    else
+        yay -S --needed --noconfirm "${ITEM%%:*}"
+    fi
+done
 
 step "Setting wallpaper and login screen"
 # The default wallpapers are gone, so make plain black the system default instead of GNOME's blue fallback
@@ -272,6 +295,7 @@ fi
 
 step "Installing GNOME extension"
 source "$(dirname "$0")/extension/install.sh" --first-install
+spin_stop
 
 if [ -n "$NEW_KEY" ]; then
     printf '\e[1;34m::\e[0;1m If you use GitHub, add this SSH key at \e[0;4;34mhttps://github.com/settings/keys\e[0m\n   \e[33m%s\e[0m\n' "$(cat ~/.ssh/id_rsa.pub)" >&3
