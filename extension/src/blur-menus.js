@@ -9,7 +9,7 @@ import Mtk from 'gi://Mtk';
 import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 
-// Live blur behind the quick settings and calendar menus and notification banners, with the theme's rounded corners.
+// Live blur behind the quick settings, calendar and clipboard history menus and notification banners, with the theme's rounded corners.
 // Shell.BlurEffect can't round its corners, so this rebuilds its background mode as paint nodes:
 // copy the screen behind the box, blur it, cut the corners with a shader, then paint the box on top.
 
@@ -22,6 +22,7 @@ const MAX_SIGMA = 6;
 const CSS = `
 .quick-settings, .datemenu-popover { background-color: rgba(54, 54, 58, 0.3) !important; }
 .notification-banner { background-color: rgba(84, 84, 90, 0.3) !important; }
+.blur-menus-clipboard { background-color: rgba(54, 54, 58, 0.3) !important; }
 `;
 
 const CORNERS = Cogl.Snippet.new(Cogl.SnippetHook.FRAGMENT, 'uniform vec2 blur_size; uniform float blur_radius;', `
@@ -137,21 +138,42 @@ export default class BlurMenus {
         St.ThemeContext.get_for_stage(global.stage).get_theme().load_stylesheet(this._file);
 
         const {quickSettings, dateMenu} = Main.panel.statusArea;
-        this._menus = [quickSettings.menu, dateMenu.menu];
-        this._menus.forEach(menu => {
-            menu.box.add_effect_with_name('blur-menus', new MenuBlurEffect());
-            // The box pointer always paints into its own offscreen buffer, where there is nothing behind the box to blur
-            menu._boxPointer.offscreen_redirect = 0;
+        this._menus = [];
+        [quickSettings.menu, dateMenu.menu].forEach(menu => this._blurMenu(menu));
+
+        // The clipboard history menu (clipboard-history.js), found by its search row so that module needs no hook.
+        // Either module can load first, and it fills its menu after adding it to uiGroup, so look once that's done.
+        const findClipboard = actor => global.compositor.get_laters().add(Meta.LaterType.BEFORE_REDRAW, () => {
+            const menu = actor._delegate;
+            if (this._menus && menu?.box?.get_children().some(c => c.has_style_class_name?.('clipboard-history-search'))) {
+                menu.box.add_style_class_name('blur-menus-clipboard');
+                this._blurMenu(menu);
+            }
+            return GLib.SOURCE_REMOVE;
         });
+        Main.uiGroup.get_children().forEach(findClipboard);
+        Main.uiGroup.connectObject('child-added', (_, actor) => findClipboard(actor), this);
 
         // The message tray puts a new banner in this bin for every notification
         Main.messageTray._bannerBin.connectObject('child-added',
             (_, banner) => banner.add_effect_with_name('blur-menus', new MenuBlurEffect()), this);
     }
 
+    _blurMenu(menu) {
+        menu.box.add_effect_with_name('blur-menus', new MenuBlurEffect());
+        // The box pointer always paints into its own offscreen buffer, where there is nothing behind the box to blur
+        menu._boxPointer.offscreen_redirect = 0;
+        this._menus.push(menu);
+        // The clipboard history menu goes away when its module is disabled first
+        menu.actor.connectObject('destroy', () => this._menus = this._menus.filter(m => m !== menu), this);
+    }
+
     disable() {
+        Main.uiGroup.disconnectObject(this);
         this._menus.forEach(menu => {
+            menu.actor.disconnectObject(this);
             menu.box.remove_effect_by_name('blur-menus');
+            menu.box.remove_style_class_name('blur-menus-clipboard');
             menu._boxPointer.offscreen_redirect = Clutter.OffscreenRedirect.ALWAYS;
         });
         this._menus = null;
