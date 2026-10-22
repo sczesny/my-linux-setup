@@ -14,6 +14,14 @@ const RADIUS = 1; // loupe radius, in source pixels beyond 10
 
 const hex = rgb => `#${rgb.map(c => c.toString(16).padStart(2, '0')).join('')}`;
 
+// Screenshots come back gamma 2.2 encoded, in HDR mode too (GNOME 51); re-encode as sRGB piecewise, as apps specify colors.
+// ±1 off for a few values from 8-bit rounding
+// ponytail: assumes every surface is sRGB; wide-gamut or HDR content stays off, check the surface's color state if those matter
+const toSrgb = c => {
+    const l = (c / 255) ** 2.2;
+    return Math.round(255 * (l <= 0.0031308 ? 12.92 * l : 1.055 * l ** (1 / 2.4) - 0.055));
+};
+
 // Magnified pixel grid with a ring in the picked color, ported from color-picker@tuberry
 // Unique GType per load: install.sh re-imports this module and GTypes cannot be unregistered
 const Loupe = GObject.registerClass({GTypeName: `ColorPickerLoupe${Date.now()}`}, class Loupe extends Clutter.Effect {
@@ -143,7 +151,7 @@ export default class ColorPicker {
             const stream = Gio.MemoryOutputStream.new_resizable();
             Shell.Screenshot.composite_to_stream(texture, x, y, 1, 1, scale, null, 0, 0, 1, stream).then(pixbuf => {
                 if (this._area !== area) return; // closed while reading
-                rgb = [...pixbuf.get_pixels().slice(0, 3)];
+                rgb = [...pixbuf.get_pixels().slice(0, 3)].map(toSrgb);
                 loupe.setup(rgb, [px, py], texture, x, y, width, height, scale);
                 swatch.style = `width: 1.4em; height: 1.4em; border-radius: 0.2em; background-color: ${hex(rgb)};`;
                 label.text = hex(rgb);
