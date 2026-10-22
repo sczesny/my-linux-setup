@@ -5,12 +5,18 @@ import St from 'gi://St';
 // Recolor the theme's warning color (#e66100) on the microphone/camera/location icons and the screen sharing pill.
 // The theme repeats these rules with more specific selectors for the overview and lock screen, so !important
 // lets short selectors win everywhere; the pseudo-class rules stay more specific, so hover shades still apply.
+const COLOR = '#ffffff'; // #45a366
+const SHARING_FG_COLOR = '#000000'; // icon and label on the screen sharing pill
+
+// Pill states fade COLOR (#rrggbb only) toward the panel background instead of using fixed shades
+const fade = alpha => `rgba(${COLOR.match(/\w\w/g).map(h => parseInt(h, 16)).join(', ')}, ${alpha})`;
+
 const CSS = `
-.privacy-indicator { color: #45a366 !important; }
-.screen-sharing-indicator { box-shadow: inset 0 0 0 100px #45a366 !important; }
-.screen-sharing-indicator:hover, .screen-sharing-indicator:focus { box-shadow: inset 0 0 0 100px #00c66b !important; }
-.screen-sharing-indicator:active, .screen-sharing-indicator:checked { box-shadow: inset 0 0 0 100px #00b260 !important; }
-.screen-sharing-indicator:active:hover, .screen-sharing-indicator:checked:hover { box-shadow: inset 0 0 0 100px #00a95b !important; }
+.privacy-indicator { color: ${COLOR} !important; }
+.screen-sharing-indicator { color: ${SHARING_FG_COLOR} !important; box-shadow: inset 0 0 0 100px ${COLOR} !important; }
+.screen-sharing-indicator:hover, .screen-sharing-indicator:focus { box-shadow: inset 0 0 0 100px ${fade(0.85)} !important; }
+.screen-sharing-indicator:active, .screen-sharing-indicator:checked { box-shadow: inset 0 0 0 100px ${fade(0.75)} !important; }
+.screen-sharing-indicator:active:hover, .screen-sharing-indicator:checked:hover { box-shadow: inset 0 0 0 100px ${fade(0.7)} !important; }
 `;
 
 export default class WarnColor {
