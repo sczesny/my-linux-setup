@@ -210,7 +210,6 @@ gsettings set org.gnome.desktop.datetime automatic-timezone true
 gsettings set org.gnome.shell.keybindings toggle-message-tray "['<Shift><Super>v', '<Super>m']"
 gsettings set org.gnome.desktop.wm.keybindings close "['<Shift><Super>x']"
 gsettings set org.gnome.shell.keybindings show-screenshot-ui "['<Shift><Super>s']"
-gsettings set org.gnome.desktop.sound allow-volume-above-100-percent true
 gsettings set org.gnome.desktop.sound event-sounds false
 gsettings set org.gnome.shell.app-switcher current-workspace-only true
 gsettings set org.gnome.desktop.interface enable-hot-corners false
