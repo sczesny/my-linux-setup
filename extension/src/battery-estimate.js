@@ -14,7 +14,11 @@ export default class BatteryEstimate {
     enable() {
         const {_system} = Main.panel.statusArea.quickSettings;
         this._proxy = _system._systemItem.powerToggle._proxy;
-        this._label = new St.Label({y_expand: true, y_align: Clutter.ActorAlign.CENTER});
+        // Adwaita Sans leaves descender room below the text, so it sits high; nudge it down like the system monitor.
+        // The stock percentage label has the same problem, and both have to match.
+        this._percentage = _system._percentageLabel;
+        this._percentage.style = 'padding-top: 0.1em;';
+        this._label = new St.Label({y_expand: true, y_align: Clutter.ActorAlign.CENTER, style: 'padding-top: 0.1em;'});
         _system.add_child(this._label);
         this._rates = [];
         // UPower only notifies on changes, so sample on a timer to weight each rate by how long it lasted
@@ -52,6 +56,7 @@ export default class BatteryEstimate {
         GLib.source_remove(this._timer);
         this._proxy.disconnect(this._id);
         this._label.destroy();
-        this._proxy = this._label = this._rates = null;
+        this._percentage.style = null;
+        this._proxy = this._percentage = this._label = this._rates = null;
     }
 }
