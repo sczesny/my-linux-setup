@@ -6,7 +6,7 @@ This is my personal Linux setup for CachyOS with GNOME
 ## Installation
 
 1. Install CachyOS with GNOME desktop environment
-2. `git clone git@github.com:sczesny/my-linux-setup.git`
+2. `git clone https://github.com/sczesny/my-linux-setup.git`
 3. `cd my-linux-setup`
 4. `./install.sh`
 
