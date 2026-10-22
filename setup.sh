@@ -249,6 +249,13 @@ for APP in btop:btop:Resources org.gnome.Ptyxis:ptyxis:Terminal; do
     fi
 done
 
+# btop leaves the background to the terminal; its own truecolor background shows darker than the same color in Ptyxis
+# Only this key is replaced so other btop settings survive re-runs
+mkdir -p ~/.config/btop
+touch ~/.config/btop/btop.conf
+sed -i '/^theme_background = /d' ~/.config/btop/btop.conf
+echo 'theme_background = false' >> ~/.config/btop/btop.conf
+
 # The marker line keeps re-runs from appending the block twice
 if ! grep -qs '^# my-linux-setup$' ~/.bashrc; then
     step "Adding shell config to ~/.bashrc"
