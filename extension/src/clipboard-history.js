@@ -128,7 +128,8 @@ export default class ClipboardHistory {
             const mimetypes = clipboard.get_mimetypes(St.ClipboardType.CLIPBOARD);
             if (mimetypes.includes('x-kde-passwordManagerHint')) return;
             clipboard.get_text(St.ClipboardType.CLIPBOARD, (_, text) => {
-                if (text) this._add({key: text, text});
+                // Whitespace-only copies (a stray newline) would show as blank cards
+                if (text?.trim()) this._add({key: text, text});
                 else if (mimetypes.includes('image/png'))
                     clipboard.get_content(St.ClipboardType.CLIPBOARD, 'image/png', (_, bytes) => this._addImage(bytes));
             });
