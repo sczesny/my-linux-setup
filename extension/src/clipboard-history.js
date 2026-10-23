@@ -35,8 +35,6 @@ const CSS = `
 .clipboard-history-scroll { -st-vfade-offset: 32px; }
 /* Same corners as the cards */
 .clipboard-history-search StEntry { border-radius: 12px; }
-/* Clear-all icon as far from the right border as from the top one (it's centered in the 37px search row) */
-.clipboard-history-search .clipboard-history-button { margin-right: 4px; }
 /* Hover and arrow-key focus both set :selected; the theme's highlight didn't show over the card background */
 .clipboard-history-item:selected { background-color: rgba(255, 255, 255, 0.16); }
 .clipboard-history-button { padding: 6px; border-radius: 99px; color: rgba(255, 255, 255, 0.6); }
