@@ -163,6 +163,12 @@ for ITEM in "${SELECTED[@]}"; do
     fi
 done
 
+step "Patching btop box titles"
+# The hook re-patches after btop updates; the script is copied out of the repo so the hook survives moving or deleting it
+sudo install -Dm755 "$(dirname "$0")/files/btop/patch.sh" /usr/local/lib/btop-titles.sh
+sudo install -Dm644 "$(dirname "$0")/files/btop/btop-titles.hook" /etc/pacman.d/hooks/btop-titles.hook
+sudo /usr/local/lib/btop-titles.sh
+
 if [[ "$INSTALL_FONTS" =~ ^[Yy] ]]; then
     step "Installing my fonts"
     # The fonts are packed into one tar inside the zip, so listing the zip doesn't show their names

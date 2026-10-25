@@ -1,0 +1,11 @@
+# Re-applies patch.sh (installed as /usr/local/lib/btop-titles.sh) whenever pacman installs or upgrades btop
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Path
+Target = usr/bin/btop
+
+[Action]
+Description = Patching btop box titles...
+When = PostTransaction
+Exec = /usr/local/lib/btop-titles.sh
