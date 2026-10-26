@@ -35,8 +35,8 @@ const CSS = `
 .clipboard-history-scroll { -st-vfade-offset: 32px; }
 /* Same corners as the cards */
 .clipboard-history-search StEntry { border-radius: 12px; }
-/* Hover and arrow-key focus both set :selected; the theme's highlight didn't show over the card background */
-.clipboard-history-item:selected { background-color: rgba(255, 255, 255, 0.16); }
+/* Arrow-key focus sets :selected; the theme's highlight didn't show over the card background */
+.clipboard-history-item:hover, .clipboard-history-item:selected { background-color: rgba(255, 255, 255, 0.16); }
 .clipboard-history-button { padding: 6px; border-radius: 99px; color: rgba(255, 255, 255, 0.6); }
 .clipboard-history-button:hover { background-color: rgba(255, 255, 255, 0.15); color: #fff; }
 .clipboard-history-button:checked { color: -st-accent-color; }
@@ -70,6 +70,12 @@ export default class ClipboardHistory {
         menu.actor.width = WIDTH;
         this._manager = new PopupMenu.PopupMenuManager(Main.layoutManager.dummyCursor);
         this._manager.addMenu(menu);
+        // The menu flips above the pointer when it doesn't fit below, rechecked on every relayout, so a list that
+        // shrank while filtering jumped back below. Decide the side once per open instead.
+        // ponytail: patches a private BoxPointer method, recheck after shell upgrades
+        const boxPointer = menu._boxPointer;
+        const calculateArrowSide = boxPointer._calculateArrowSide.bind(boxPointer);
+        boxPointer._calculateArrowSide = side => (this._arrowSide ??= calculateArrowSide(side));
 
         this._search = new St.Entry({hint_text: 'Search clipboard history…', can_focus: true, x_expand: true});
         // Opening clears the search too, so both start at the top: newest entries and best matches are there.
@@ -83,6 +89,18 @@ export default class ClipboardHistory {
         this._search.clutter_text.connect('key-press-event', (_, event) => {
             if (event.get_key_symbol() !== Clutter.KEY_Down || !this._list.firstMenuItem) return Clutter.EVENT_PROPAGATE;
             this._list.firstMenuItem.grab_key_focus();
+            return Clutter.EVENT_STOP;
+        });
+        // Typing with an entry focused (arrow keys, Delete) goes to the search instead.
+        // The search handles its own keys before they bubble here; space still activates the focused entry
+        menu.actor.connect('key-press-event', (_, event) => {
+            const char = event.get_key_unicode();
+            const backspace = event.get_key_symbol() === Clutter.KEY_BackSpace;
+            if (!backspace && !GLib.unichar_isgraph(char)) return Clutter.EVENT_PROPAGATE;
+            this._search.grab_key_focus();
+            this._search.clutter_text.set_cursor_position(-1);
+            if (backspace) this._search.clutter_text.delete_chars(1);
+            else this._search.clutter_text.insert_unichar(char);
             return Clutter.EVENT_STOP;
         });
         const clearAll = new St.Button({
@@ -108,6 +126,8 @@ export default class ClipboardHistory {
 
         menu.connect('open-state-changed', (_, open) => {
             if (!open) return;
+            // Not on close: the closing animation still lays out the menu, which would decide for the old position
+            this._arrowSide = null;
             this._search.text = '';
             this._render();
             this._scroll.vadjustment.value = 0;
@@ -210,7 +230,8 @@ export default class ClipboardHistory {
             }));
         }
         shown.forEach((entry, index) => {
-            const item = new PopupMenu.PopupBaseMenuItem({style_class: 'clipboard-history-item'});
+            // No hover binding: it moved key focus to the entry under the pointer, also on each re-render while typing
+            const item = new PopupMenu.PopupBaseMenuItem({style_class: 'clipboard-history-item', hover: false});
             item.add_child(entry.thumb
                 ? new St.Widget({
                     style_class: 'clipboard-history-content', content: entry.thumb, request_mode: Clutter.RequestMode.CONTENT_SIZE,
