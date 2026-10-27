@@ -5,6 +5,7 @@ import Meta from 'gi://Meta';
 import Cogl from 'gi://Cogl';
 import Shell from 'gi://Shell';
 import Clutter from 'gi://Clutter';
+import Pango from 'gi://Pango';
 import GdkPixbuf from 'gi://GdkPixbuf';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import * as PopupMenu from 'resource:///org/gnome/shell/ui/popupMenu.js';
@@ -32,7 +33,7 @@ const CSS = `
    popup's rounded bottom corner, where its end looked closer to the border than everything else */
 .clipboard-history-scroll StScrollBar { margin-left: 6px; margin-bottom: 8px; }
 /* Fades cards cut off by scrolling; the theme's 68px fades more than a whole card */
-.clipboard-history-scroll { -st-vfade-offset: 32px; }
+.clipboard-history-scroll { -st-vfade-offset: 42px; }
 /* Same corners as the cards */
 .clipboard-history-search StEntry { border-radius: 12px; }
 /* Arrow-key focus sets :selected; the theme's highlight didn't show over the card background */
@@ -44,6 +45,9 @@ const CSS = `
 .clipboard-history-pin { padding: 7px 6px 5px 6px; }
 /* The delete button's own 6px padding fills the card's top and right inset, so its icon sits 12px in like the text */
 .clipboard-history-content { margin-top: 6px; }
+.clipboard-history-files { spacing: 8px; }
+/* Edge fades only show where text is cut off; fadedText() sets the height */
+.clipboard-history-text { -st-vfade-offset: 32px; -st-hfade-offset: 48px; }
 .clipboard-history-empty { padding: 24px; color: rgba(255, 255, 255, 0.5); }
 `;
 
@@ -51,7 +55,8 @@ export default class ClipboardHistory {
     enable() {
         try {
             this._history = JSON.parse(new TextDecoder().decode(GLib.file_get_contents(PINNED)[1])).map(e => ({
-                ...(e.image ? imageEntry(new GLib.Bytes(GLib.base64_decode(e.image))) : {key: e.text, text: e.text}),
+                ...(e.image ? imageEntry(new GLib.Bytes(GLib.base64_decode(e.image)))
+                    : e.files ? fileEntry(e.files) : {key: e.text, text: e.text}),
                 pinned: true,
             }));
         } catch {
@@ -139,17 +144,26 @@ export default class ClipboardHistory {
             });
         });
 
-        // Text wins when both are offered (office apps add a picture of copied cells); browsers' "Copy Image" has no text
+        // Files win over text, which file managers add as the paths.
+        // Text wins over images (office apps add a picture of copied cells); browsers' "Copy Image" has no text
         this._selection = global.display.get_selection();
         this._ownerId = this._selection.connect('owner-changed', (_, type) => {
             if (type !== Meta.SelectionType.SELECTION_CLIPBOARD) return;
             const mimetypes = clipboard.get_mimetypes(St.ClipboardType.CLIPBOARD);
             if (mimetypes.includes('x-kde-passwordManagerHint')) return;
-            clipboard.get_text(St.ClipboardType.CLIPBOARD, (_, text) => {
+            const addText = () => clipboard.get_text(St.ClipboardType.CLIPBOARD, (_, text) => {
                 // Whitespace-only copies (a stray newline) would show as blank cards
                 if (text?.trim()) this._add({key: text, text});
                 else if (mimetypes.includes('image/png'))
                     clipboard.get_content(St.ClipboardType.CLIPBOARD, 'image/png', (_, bytes) => this._addImage(bytes));
+            });
+            if (!mimetypes.includes('text/uri-list')) return addText();
+            clipboard.get_content(St.ClipboardType.CLIPBOARD, 'text/uri-list', (_, bytes) => {
+                // Browsers offer web links as URI lists too; those stay text
+                const uris = bytes?.get_size() ? new TextDecoder().decode(bytes.toArray()).split(/\r?\n/)
+                    .filter(line => line && !line.startsWith('#')) : [];
+                if (uris.length && uris.every(uri => uri.startsWith('file://'))) this._add(fileEntry(uris));
+                else addText();
             });
         });
 
@@ -206,7 +220,7 @@ export default class ClipboardHistory {
 
     _savePinned() {
         GLib.file_set_contents(PINNED, JSON.stringify(this._history.filter(e => e.pinned)
-            .map(e => e.bytes ? {image: GLib.base64_encode(e.bytes.toArray())} : {text: e.text})));
+            .map(e => e.bytes ? {image: GLib.base64_encode(e.bytes.toArray())} : e.uris ? {files: e.uris} : {text: e.text})));
     }
 
     _remove(entry, index) {
@@ -232,12 +246,20 @@ export default class ClipboardHistory {
         shown.forEach((entry, index) => {
             // No hover binding: it moved key focus to the entry under the pointer, also on each re-render while typing
             const item = new PopupMenu.PopupBaseMenuItem({style_class: 'clipboard-history-item', hover: false});
-            item.add_child(entry.thumb
-                ? new St.Widget({
+            if (entry.thumb) {
+                item.add_child(new St.Widget({
                     style_class: 'clipboard-history-content', content: entry.thumb, request_mode: Clutter.RequestMode.CONTENT_SIZE,
                     x_expand: true, x_align: Clutter.ActorAlign.START,
-                })
-                : new St.Label({style_class: 'clipboard-history-content', text: preview(entry.text), x_expand: true}));
+                }));
+            } else if (entry.uris) {
+                // The icon tells files apart from a copied path
+                const files = new St.BoxLayout({style_class: 'clipboard-history-content clipboard-history-files', x_expand: true});
+                files.add_child(new St.Icon({icon_name: 'text-x-generic-symbolic', icon_size: 16, y_align: Clutter.ActorAlign.START}));
+                files.add_child(fadedText(entry.text));
+                item.add_child(files);
+            } else {
+                item.add_child(fadedText(entry.text, 'clipboard-history-content'));
+            }
             const pin = new St.Button({
                 style_class: 'clipboard-history-button clipboard-history-pin', y_align: Clutter.ActorAlign.START, checked: !!entry.pinned,
                 child: new St.Icon({icon_name: 'view-pin-symbolic', icon_size: 16}),
@@ -264,32 +286,70 @@ export default class ClipboardHistory {
         });
     }
 
-    // Selecting an entry re-copies it (owner-changed moves it to the top) and pastes via Shift+Insert
+    // Selecting an entry re-copies it (owner-changed moves it to the top) and pastes via Shift+Insert,
+    // or Ctrl+V for files: file managers don't bind Shift+Insert, and terminals can't take files anyway
     _paste(entry) {
         this._menu.close();
         if (entry.bytes) {
             clipboard.set_content(St.ClipboardType.CLIPBOARD, 'image/png', entry.bytes);
+        } else if (entry.uris) {
+            // St offers one type per copy, so no text/plain or cut flag (x-special/gnome-copied-files); pasting copies
+            clipboard.set_content(St.ClipboardType.CLIPBOARD, 'text/uri-list',
+                new GLib.Bytes(new TextEncoder().encode(entry.uris.map(uri => `${uri}\r\n`).join(''))));
         } else {
             clipboard.set_text(St.ClipboardType.CLIPBOARD, entry.text);
             clipboard.set_text(St.ClipboardType.PRIMARY, entry.text);
         }
         this._pasteId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 1, () => {
             const time = Clutter.get_current_event_time() * 1000;
-            const SHIFT_L = 42, INSERT = 110;
-            for (const [key, state] of [[SHIFT_L, 1], [INSERT, 1], [INSERT, 0], [SHIFT_L, 0]])
-                this._keyboard.notify_key(time, key, state ? Clutter.KeyState.PRESSED : Clutter.KeyState.RELEASED);
+            const SHIFT_L = 42, INSERT = 110, CTRL_L = 29, V = 47;
+            const [modifier, key] = entry.uris ? [CTRL_L, V] : [SHIFT_L, INSERT];
+            for (const [code, state] of [[modifier, 1], [key, 1], [key, 0], [modifier, 0]])
+                this._keyboard.notify_key(time, code, state ? Clutter.KeyState.PRESSED : Clutter.KeyState.RELEASED);
             this._pasteId = 0;
             return GLib.SOURCE_REMOVE;
         });
     }
 }
 
-// First few lines, each cut short, so huge copies stay cheap to lay out; St.Label ellipsizes the long ones
-function preview(text) {
-    const lines = text.trim().split('\n');
-    const shown = lines.slice(0, MAX_LINES).map(line => line.slice(0, 200));
-    if (lines.length > MAX_LINES) shown.push('…');
-    return shown.join('\n');
+// Long copies fade out at the bottom and right instead of ending in "…": a scroll view that never scrolls, only for
+// its edge fades. Cut to one line more than shown, so the faded line only fades when more follows, each line short,
+// so huge copies stay cheap to lay out
+function fadedText(text, styleClass = '') {
+    const lines = text.trim().split('\n').slice(0, MAX_LINES + 2);
+    const label = new St.Label({text: lines.map(line => line.slice(0, 200)).join('\n')});
+    label.clutter_text.ellipsize = Pango.EllipsizeMode.NONE;
+    // Scroll views only take scrollable children
+    const box = new St.BoxLayout();
+    box.add_child(label);
+    const view = new St.ScrollView({
+        style_class: `clipboard-history-text ${styleClass}`, x_expand: true,
+        hscrollbar_policy: St.PolicyType.EXTERNAL, vscrollbar_policy: St.PolicyType.EXTERNAL,
+        // Wheel scrolling still moves the list
+        enable_mouse_scrolling: false,
+    });
+    view.add_child(box);
+    // Shows MAX_LINES and the faded one, ending at about its baseline: St's fade is linear and only reaches zero at the
+    // edge, so ending below the line left its bottom visible. Only descenders are cut, where the fade is ~0.
+    // Line height is measured once the label has its font. No GObject subclass: reloading the extension in the
+    // session runs this module again, and registering the type twice failed to load it
+    if (lines.length > MAX_LINES + 1) {
+        label.connect('style-changed', () => {
+            view.height = label.clutter_text.get_preferred_height(-1)[1] / lines.length * (MAX_LINES + 0.75);
+        });
+    }
+    return view;
+}
+
+// Keeps the URIs for pasting; the paths, home as ~, are the card text and what search matches
+function fileEntry(uris) {
+    const home = GLib.get_home_dir();
+    const text = uris.map(uri => {
+        const path = Gio.File.new_for_uri(uri).get_path() ?? uri;
+        return path.startsWith(`${home}/`) ? `~${path.slice(home.length)}` : path;
+    }).join('\n');
+    // Prefixed so the files and their paths copied as text are separate entries
+    return {key: `files:${uris.join('\n')}`, uris, text};
 }
 
 // Keeps the PNG for pasting and a downscaled copy for the card
