@@ -25,8 +25,8 @@ const PLACES = `${GLib.get_user_state_dir()}/zones-windows.json`;
 const KEYS = {'toggle-tiled-left': [-1, 0], 'toggle-tiled-right': [1, 0], 'maximize': [0, -1], 'unmaximize': [0, 1]};
 const FADE_MS = 150; // zone preview fade-in
 const SLIDE_MS = 250; // Super+arrow slide
-const SLIDE_WAIT_MS = 500; // ponytail: max wait for the app to redraw at the new size, then it snaps without slide
-const RESTORE_MS = 10000; // ponytail: fixed window, raise it if a slow-loading app still escapes its zone
+const SLIDE_WAIT_MS = 500; // max wait for the app to redraw at the new size, then it snaps without slide
+const RESTORE_MS = 10000; // fixed window, raise it if a slow-loading app still escapes its zone
 const GAP = 1; // px between zone and its outline, visual only; fractions are crisp only at scale 2+
 
 const px = (v, size) => Math.round(Math.abs(v) > 1 ? Math.abs(v) : Math.abs(v) * size);

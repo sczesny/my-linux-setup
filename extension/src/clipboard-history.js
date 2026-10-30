@@ -13,7 +13,7 @@ import {ensureActorVisibleInScrollView} from 'resource:///org/gnome/shell/misc/a
 
 const SHORTCUT = '<Super>v';
 const MAX_ENTRIES = 1000;
-// ponytail: images are kept in RAM, so only the newest few; move them to a cache dir if more are wanted
+// images are kept in RAM, so only the newest few; move them to a cache dir if more are wanted
 const MAX_IMAGES = 25;
 const MAX_SHOWN = 50;
 const MAX_LINES = 4;
@@ -77,7 +77,7 @@ export default class ClipboardHistory {
         this._manager.addMenu(menu);
         // The menu flips above the pointer when it doesn't fit below, rechecked on every relayout, so a list that
         // shrank while filtering jumped back below. Decide the side once per open instead.
-        // ponytail: patches a private BoxPointer method, recheck after shell upgrades
+        // patches a private BoxPointer method, recheck after shell upgrades
         const boxPointer = menu._boxPointer;
         const calculateArrowSide = boxPointer._calculateArrowSide.bind(boxPointer);
         boxPointer._calculateArrowSide = side => (this._arrowSide ??= calculateArrowSide(side));

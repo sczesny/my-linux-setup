@@ -16,7 +16,7 @@ const hex = rgb => `#${rgb.map(c => c.toString(16).padStart(2, '0')).join('')}`;
 
 // Screenshots come back gamma 2.2 encoded, in HDR mode too (GNOME 51); re-encode as sRGB piecewise, as apps specify colors.
 // ±1 off for a few values from 8-bit rounding
-// ponytail: assumes every surface is sRGB; wide-gamut or HDR content stays off, check the surface's color state if those matter
+// assumes every surface is sRGB; wide-gamut or HDR content stays off, check the surface's color state if those matter
 const toSrgb = c => {
     const l = (c / 255) ** 2.2;
     return Math.round(255 * (l <= 0.0031308 ? 12.92 * l : 1.055 * l ** (1 / 2.4) - 0.055));

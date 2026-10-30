@@ -63,7 +63,7 @@ function framebufferRect(actor, framebuffer) {
 }
 
 // GTypes can't be registered twice, and install.sh re-imports this module into the same shell.
-// ponytail: leaks one type per reload, fine for a dev loop.
+// leaks one type per reload, fine for a dev loop.
 const MenuBlurEffect = GObject.registerClass({
     GTypeName: `CustomMenuBlurEffect${Date.now()}`,
 }, class MenuBlurEffect extends Clutter.Effect {
@@ -114,7 +114,7 @@ const MenuBlurEffect = GObject.registerClass({
         node.add_child(new Clutter.ActorNode(actor, -1));
 
         // Outside the redraw clip the framebuffer still holds the last frame, menu included, which would
-        // leak into the blur. Repaint the whole box next frame. ponytail: one frame of smear on partial redraws.
+        // leak into the blur. Repaint the whole box next frame. one frame of smear on partial redraws.
         const clip = paintContext.get_redraw_clip();
         const extents = actor.get_transformed_extents();
         const stageRect = new Mtk.Rectangle({

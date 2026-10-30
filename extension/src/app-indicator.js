@@ -94,7 +94,7 @@ class Item {
         this._button.add_child(this._icon);
         this._button.visible = false;
         // Square instead of the theme's wide padding. The button's own height is only the panel stretching it,
-        // so take the panel's. ponytail: read once, a text scaling change applies to items registered after it.
+        // so take the panel's. read once, a text scaling change applies to items registered after it.
         this._button.width = Main.panel.get_preferred_height(-1)[1];
         this._button.style = '-natural-hpadding: 0; -minimum-hpadding: 0;';
         Main.panel.addToStatusArea(`app-indicator-${name}${path}`, this._button);
@@ -167,7 +167,7 @@ class Item {
         }
         if (seq !== this._menuSeq || !this._button)
             return;
-        // ponytail: rebuilds the whole menu on every change, which closes open submenus; diff by id if that bites
+        // rebuilds the whole menu on every change, which closes open submenus; diff by id if that bites
         this._button.menu.removeAll();
         this._fill(this._button.menu, layout[2]);
         // Hide lasts until the app quits (its next start registers a new item), Remove until REMOVED_FILE says otherwise
