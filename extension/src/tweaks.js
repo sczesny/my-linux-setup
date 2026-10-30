@@ -113,6 +113,30 @@ function hideSearchUntilTyping() {
     };
 }
 
+// Typing reaches the unfocused entry through its input interceptor, but on Ctrl+V that only focuses it.
+// Same paste as the entry's context menu; a focused entry handles the key itself, so it never bubbles up to here.
+function pasteStartsSearch() {
+    const {clutter_text: text} = Main.overview.searchEntry;
+    const keys = new Clutter.KeyController();
+    keys.connect('key-press', () => {
+        const [, symbol] = keys.get_key();
+        const [, pressed] = keys.get_state();
+        if (!Main.overview.visible || Main.modalCount > 1 ||
+            !(pressed & Clutter.ModifierType.CONTROL_MASK) || (symbol !== Clutter.KEY_v && symbol !== Clutter.KEY_V))
+            return Clutter.EVENT_PROPAGATE;
+        St.Clipboard.get_default().get_text(St.ClipboardType.CLIPBOARD, (_, pasted) => {
+            if (!pasted)
+                return;
+            text.grab_key_focus();
+            text.delete_selection();
+            text.insert_text(pasted, text.get_cursor_position());
+        });
+        return Clutter.EVENT_STOP;
+    });
+    global.stage.add_action(keys);
+    return () => global.stage.remove_action(keys);
+}
+
 // Search entry at the bottom with results above it: swap the two after the overview layout placed them.
 // The controller is allocated after the entry, so its allocation sees both final.
 function searchAtBottom() {
@@ -243,6 +267,7 @@ export default class Tweaks {
             keepNeighborsVisible(),
             keepWindowsInWorkspace(),
             hideSearchUntilTyping(),
+            pasteStartsSearch(),
             searchAtBottom(),
             panelAtBottom(),
             flushPanelMenus(),
