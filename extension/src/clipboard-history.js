@@ -47,7 +47,7 @@ const CSS = `
 .clipboard-history-content { margin-top: 6px; }
 .clipboard-history-files { spacing: 8px; }
 /* Edge fades only show where text is cut off; fadedText() sets the height */
-.clipboard-history-text { -st-vfade-offset: 32px; -st-hfade-offset: 48px; }
+.clipboard-history-text { -st-vfade-offset: 48px; -st-hfade-offset: 48px; }
 .clipboard-history-empty { padding: 24px; color: rgba(255, 255, 255, 0.5); }
 `;
 
@@ -324,18 +324,19 @@ function fadedText(text, styleClass = '') {
     box.add_child(label);
     const view = new St.ScrollView({
         style_class: `clipboard-history-text ${styleClass}`, x_expand: true,
-        hscrollbar_policy: St.PolicyType.EXTERNAL, vscrollbar_policy: St.PolicyType.EXTERNAL,
+        // NEVER, not EXTERNAL: EXTERNAL has min height 0, and the list's scroll view lays cards out at min height
+        hscrollbar_policy: St.PolicyType.EXTERNAL, vscrollbar_policy: St.PolicyType.NEVER,
         // Wheel scrolling still moves the list
         enable_mouse_scrolling: false,
     });
     view.add_child(box);
-    // Shows MAX_LINES and the faded one, ending at about its baseline: St's fade is linear and only reaches zero at the
-    // edge, so ending below the line left its bottom visible. Only descenders are cut, where the fade is ~0.
+    // Shows MAX_LINES and the faded one whole: ending at its baseline cut the glyphs in a visible line, as St's fade is
+    // still ~7% on the last row. The longer fade keeps the line's bottom faint instead.
     // Line height is measured once the label has its font. No GObject subclass: reloading the extension in the
     // session runs this module again, and registering the type twice failed to load it
     if (lines.length > MAX_LINES + 1) {
         label.connect('style-changed', () => {
-            view.height = label.clutter_text.get_preferred_height(-1)[1] / lines.length * (MAX_LINES + 0.75);
+            view.height = label.clutter_text.get_preferred_height(-1)[1] / lines.length * (MAX_LINES + 1);
         });
     }
     return view;
