@@ -2,6 +2,7 @@ import Clutter from 'gi://Clutter';
 import Gio from 'gi://Gio';
 import GLib from 'gi://GLib';
 import GObject from 'gi://GObject';
+import Meta from 'gi://Meta';
 import St from 'gi://St';
 import * as Main from 'resource:///org/gnome/shell/ui/main.js';
 import {MonitorConstraint} from 'resource:///org/gnome/shell/ui/layout.js';
@@ -259,6 +260,59 @@ function notificationsAtBottomLeft() {
     };
 }
 
+// Popups get their window type after window-created, so check it at paint time
+const SHADOWLESS_TYPES = [Meta.WindowType.NORMAL, Meta.WindowType.DIALOG, Meta.WindowType.MODAL_DIALOG];
+
+// GTypes can't be registered twice, and install.sh re-imports this module into the same shell.
+const NoShadowEffect = GObject.registerClass({
+    GTypeName: `CustomNoShadowEffect${Date.now()}`,
+}, class NoShadowEffect extends Clutter.Effect {
+    vfunc_paint_node(node) {
+        const actor = this.get_actor();
+        const win = actor.meta_window;
+        const content = new Clutter.ActorNode(actor, -1);
+        if (!SHADOWLESS_TYPES.includes(win.get_window_type())) {
+            node.add_child(content);
+            return;
+        }
+        // The actor's origin is the buffer rect, which adds client-side shadows around the frame
+        const f = win.get_frame_rect(), b = win.get_buffer_rect();
+        const clip = Clutter.ClipNode.new();
+        clip.add_rectangle(new Clutter.ActorBox({
+            x1: f.x - b.x, y1: f.y - b.y, x2: f.x - b.x + f.width, y2: f.y - b.y + f.height,
+        }));
+        clip.add_child(content);
+        node.add_child(clip);
+    }
+});
+
+// Clip window painting to the frame. Apps draw their shadows themselves, so no setting removes them from all apps.
+// An effect only changes painting: Actor.set_clip would also cut input, and the resize area lies in the shadow.
+function removeWindowShadows() {
+    const owner = {};
+    // Fullscreen windows have no shadow, and without the effect nothing can get in the way of direct scanout
+    const sync = actor => {
+        const hasEffect = actor.get_effect('no-shadow');
+        if (actor.meta_window.fullscreen)
+            actor.remove_effect_by_name('no-shadow');
+        else if (!hasEffect)
+            actor.add_effect_with_name('no-shadow', new NoShadowEffect());
+    };
+    const track = actor => {
+        actor.meta_window.connectObject('notify::fullscreen', () => sync(actor), actor);
+        sync(actor);
+    };
+    global.get_window_actors().forEach(track);
+    global.display.connectObject('window-created', (_d, win) => track(win.get_compositor_private()), owner);
+    return () => {
+        global.display.disconnectObject(owner);
+        global.get_window_actors().forEach(actor => {
+            actor.meta_window.disconnectObject(actor);
+            actor.remove_effect_by_name('no-shadow');
+        });
+    };
+}
+
 export default class Tweaks {
     enable() {
         this._undo = [
@@ -274,6 +328,7 @@ export default class Tweaks {
             rearrangePanel(),
             hidePowerIconWithoutBattery(),
             notificationsAtBottomLeft(),
+            removeWindowShadows(),
         ];
     }
 

@@ -221,7 +221,7 @@ export default class Zones {
         this._remember(win, best);
     }
 
-    // One outline per zone on the pointer's monitor; the zone under the pointer is highlighted while the window moves
+    // One outline per zone on the pointer's monitor; the zone under the window's center or the pointer is highlighted while the window moves
     _show(win) {
         this._hide();
         const area = Main.layoutManager.getWorkAreaForMonitor(global.display.get_current_monitor());
@@ -241,8 +241,8 @@ export default class Zones {
         this._hover();
     }
 
-    // Of the zones under the pointer, the one whose center is nearest wins; outside all zones nothing is picked.
-    // Holding Ctrl hides the zones and disables snapping
+    // Of the zones under the window's center or the pointer, the one whose center is nearest to that point wins;
+    // outside all zones nothing is picked. Holding Ctrl hides the zones and disables snapping
     _hover() {
         const [px, py, mods] = global.get_pointer();
         this._overlay.visible = !(mods & Clutter.ModifierType.CONTROL_MASK);
@@ -250,10 +250,14 @@ export default class Zones {
             this._hit = null;
             return;
         }
-        const x = px - this._overlay.x, y = py - this._overlay.y;
-        const dist = a => Math.hypot(a.x + a.width / 2 - x, a.y + a.height / 2 - y);
+        const f = this._win.get_frame_rect(), ox = this._overlay.x, oy = this._overlay.y;
+        const points = [[f.x + f.width / 2 - ox, f.y + f.height / 2 - oy], [px - ox, py - oy]];
+        // distance from a's center to the nearest of the points inside a; Infinity if none is inside
+        const dist = a => Math.min(...points.map(([x, y]) =>
+            x >= a.x && x < a.x + a.width && y >= a.y && y < a.y + a.height
+                ? Math.hypot(a.x + a.width / 2 - x, a.y + a.height / 2 - y) : Infinity));
         this._hit = this._zones
-            .filter(a => x >= a.x && x < a.x + a.width && y >= a.y && y < a.y + a.height)
+            .filter(a => dist(a) < Infinity)
             .reduce((best, a) => (!best || dist(a) < dist(best) ? a : best), null);
         this._zones.forEach(a => (a.style = a === this._hit ? HOVER_STYLE : ZONE_STYLE));
     }
