@@ -273,7 +273,7 @@ export default class SystemMonitorExtension {
         let totalUp = 0n;
 
         for (const iface of interfaces) {
-            if (iface === 'lo') continue;
+            if (!GLib.file_test(`/sys/class/net/${iface}/device`, GLib.FileTest.EXISTS)) continue;
             const load = new GTop.glibtop_netload();
             GTop.glibtop_get_netload(load, iface);
             totalDown += BigInt(load.bytes_in);
